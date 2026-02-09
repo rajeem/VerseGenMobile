@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface VerseRow {
   id: string;
@@ -14,15 +14,14 @@ interface DropdownProps {
   items: string[];
   value: string;
   onSelect: (item: string) => void;
-  labelWidth?: number;
 }
 
-function Dropdown({ label, items, value, onSelect, labelWidth = 80 }: DropdownProps) {
+function Dropdown({ label, items, value, onSelect }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <View style={styles.dropdownContainer}>
-      <Text style={[styles.label, { width: labelWidth }]}>{label}</Text>
+      <Text style={styles.label}>{label}</Text>
       <TouchableOpacity 
         style={styles.dropdownButton} 
         onPress={() => setIsOpen(true)}
@@ -45,9 +44,9 @@ function Dropdown({ label, items, value, onSelect, labelWidth = 80 }: DropdownPr
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{label}</Text>
             <ScrollView style={styles.scrollView}>
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <TouchableOpacity
-                  key={index}
+                  key={`${label}-${item}`}
                   style={styles.optionItem}
                   onPress={() => {
                     onSelect(item);
@@ -65,40 +64,53 @@ function Dropdown({ label, items, value, onSelect, labelWidth = 80 }: DropdownPr
   );
 }
 
-function VerseRow({ verseRow, onUpdate, bibleVersions, bibleBooks, chapters, verses }: {
+function VerseRow({ verseRow, onUpdate, onDelete, bibleVersions, bibleBooks, chapters, verses, isLastRow }: {
   verseRow: VerseRow;
   onUpdate: (field: keyof VerseRow, value: string) => void;
+  onDelete: () => void;
   bibleVersions: string[];
   bibleBooks: string[];
   chapters: string[];
   verses: string[];
+  isLastRow: boolean;
 }) {
   return (
     <View style={styles.rowContainer}>
-      <Dropdown
-        label="Version"
-        items={bibleVersions}
-        value={verseRow.version}
-        onSelect={(value) => onUpdate('version', value)}
-      />
-      <Dropdown
-        label="Book"
-        items={bibleBooks}
-        value={verseRow.book}
-        onSelect={(value) => onUpdate('book', value)}
-      />
-      <Dropdown
-        label="Chapter"
-        items={chapters}
-        value={verseRow.chapter}
-        onSelect={(value) => onUpdate('chapter', value)}
-      />
-      <Dropdown
-        label="Verse"
-        items={verses}
-        value={verseRow.verse}
-        onSelect={(value) => onUpdate('verse', value)}
-      />
+      {!isLastRow && (
+        <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
+          <Text style={styles.deleteButtonText}>×</Text>
+        </TouchableOpacity>
+      )}
+      <View style={styles.twoColumnLayout}>
+        <View style={styles.column}>
+          <Dropdown
+            label="Version"
+            items={bibleVersions}
+            value={verseRow.version}
+            onSelect={(value) => onUpdate('version', value)}
+          />
+          <Dropdown
+            label="Chapter"
+            items={chapters}
+            value={verseRow.chapter}
+            onSelect={(value) => onUpdate('chapter', value)}
+          />
+        </View>
+        <View style={styles.column}>
+          <Dropdown
+            label="Book"
+            items={bibleBooks}
+            value={verseRow.book}
+            onSelect={(value) => onUpdate('book', value)}
+          />
+          <Dropdown
+            label="Verse"
+            items={verses}
+            value={verseRow.verse}
+            onSelect={(value) => onUpdate('verse', value)}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -133,12 +145,16 @@ export default function HomeScreen() {
   const verses = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
 
   const [verseRows, setVerseRows] = useState<VerseRow[]>([
-    { id: '1', version: '', book: '', chapter: '', verse: '' }
+    { id: Date.now().toString(), version: '---', book: '---', chapter: '---', verse: '---' }
   ]);
 
   const addNewRow = () => {
-    const newId = (verseRows.length + 1).toString();
-    setVerseRows([...verseRows, { id: newId, version: '', book: '', chapter: '', verse: '' }]);
+    const newId = Date.now().toString();
+    setVerseRows([...verseRows, { id: newId, version: '---', book: '---', chapter: '---', verse: '---' }]);
+  };
+
+  const deleteVerseRow = (rowId: string) => {
+    setVerseRows(verseRows.filter(row => row.id !== rowId));
   };
 
   const updateVerseRow = (rowId: string, field: keyof VerseRow, value: string) => {
@@ -147,30 +163,63 @@ export default function HomeScreen() {
     ));
   };
 
+  const handleGenerate = () => {
+    console.log('Generate button pressed', verseRows);
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {verseRows.map((row) => (
-          <VerseRow
-            key={row.id}
-            verseRow={row}
-            onUpdate={(field, value) => updateVerseRow(row.id, field, value)}
-            bibleVersions={bibleVersions}
-            bibleBooks={bibleBooks}
-            chapters={chapters}
-            verses={verses}
-          />
-        ))}
-        
-        <TouchableOpacity style={styles.moreButton} onPress={addNewRow}>
-          <Text style={styles.moreButtonText}>+ More</Text>
-        </TouchableOpacity>
+    <View style={styles.mainContainer}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.toolbar}>
+        <Text style={styles.toolbarTitle}>Verse Generator</Text>
       </View>
-    </ScrollView>
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          {verseRows.map((row, index) => (
+            <VerseRow
+              key={row.id}
+              verseRow={row}
+              onUpdate={(field, value) => updateVerseRow(row.id, field, value)}
+              onDelete={() => deleteVerseRow(row.id)}
+              bibleVersions={bibleVersions}
+              bibleBooks={bibleBooks}
+              chapters={chapters}
+              verses={verses}
+              isLastRow={index === verseRows.length - 1}
+            />
+          ))}
+          
+          <TouchableOpacity style={styles.moreButton} onPress={addNewRow}>
+            <Text style={styles.moreButtonText}>+ More</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.generateButton} onPress={handleGenerate}>
+            <Text style={styles.generateButtonText}>Generate</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  toolbar: {
+    backgroundColor: '#007AFF',
+    paddingTop: 50,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#0051D5',
+  },
+  toolbarTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -179,35 +228,62 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   rowContainer: {
-    marginBottom: 20,
-    paddingBottom: 20,
+    marginBottom: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    position: 'relative',
+  },
+  twoColumnLayout: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  column: {
+    flex: 1,
+    marginRight: 8,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    lineHeight: 16,
   },
   dropdownContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
-    width: 80,
+    marginRight: 4,
   },
   dropdownButton: {
     flex: 1,
-    height: 40,
+    height: 32,
     backgroundColor: '#f5f5f5',
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    marginLeft: 10,
+    paddingHorizontal: 8,
+    marginLeft: 4,
   },
   dropdownText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#333',
   },
   dropdownArrow: {
@@ -255,6 +331,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   moreButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  generateButton: {
+    backgroundColor: '#34C759',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  generateButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
