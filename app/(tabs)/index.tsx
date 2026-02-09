@@ -1,98 +1,262 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+interface VerseRow {
+  id: string;
+  version: string;
+  book: string;
+  chapter: string;
+  verse: string;
+}
+
+interface DropdownProps {
+  label: string;
+  items: string[];
+  value: string;
+  onSelect: (item: string) => void;
+  labelWidth?: number;
+}
+
+function Dropdown({ label, items, value, onSelect, labelWidth = 80 }: DropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={[styles.label, { width: labelWidth }]}>{label}</Text>
+      <TouchableOpacity 
+        style={styles.dropdownButton} 
+        onPress={() => setIsOpen(true)}
+      >
+        <Text style={styles.dropdownText}>{value || `Select ${label}`}</Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+      
+      <Modal
+        visible={isOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsOpen(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setIsOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <ScrollView style={styles.scrollView}>
+              {items.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.optionItem}
+                  onPress={() => {
+                    onSelect(item);
+                    setIsOpen(false);
+                  }}
+                >
+                  <Text style={styles.optionText}>{item}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+function VerseRow({ verseRow, onUpdate, bibleVersions, bibleBooks, chapters, verses }: {
+  verseRow: VerseRow;
+  onUpdate: (field: keyof VerseRow, value: string) => void;
+  bibleVersions: string[];
+  bibleBooks: string[];
+  chapters: string[];
+  verses: string[];
+}) {
+  return (
+    <View style={styles.rowContainer}>
+      <Dropdown
+        label="Version"
+        items={bibleVersions}
+        value={verseRow.version}
+        onSelect={(value) => onUpdate('version', value)}
+      />
+      <Dropdown
+        label="Book"
+        items={bibleBooks}
+        value={verseRow.book}
+        onSelect={(value) => onUpdate('book', value)}
+      />
+      <Dropdown
+        label="Chapter"
+        items={chapters}
+        value={verseRow.chapter}
+        onSelect={(value) => onUpdate('chapter', value)}
+      />
+      <Dropdown
+        label="Verse"
+        items={verses}
+        value={verseRow.verse}
+        onSelect={(value) => onUpdate('verse', value)}
+      />
+    </View>
+  );
+}
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const bibleVersions = [
+    'King James Version (KJV)',
+    'New International Version (NIV)',
+    'English Standard Version (ESV)',
+    'New Living Translation (NLT)',
+    'New King James Version (NKJV)',
+  ];
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const bibleBooks = [
+    'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
+    'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel',
+    '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra',
+    'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs',
+    'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations',
+    'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos',
+    'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk',
+    'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+    'Matthew', 'Mark', 'Luke', 'John', 'Acts',
+    'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
+    'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy',
+    '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James',
+    '1 Peter', '2 Peter', '1 John', '2 John', '3 John',
+    'Jude', 'Revelation'
+  ];
+
+  const chapters = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
+  const verses = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
+
+  const [verseRows, setVerseRows] = useState<VerseRow[]>([
+    { id: '1', version: '', book: '', chapter: '', verse: '' }
+  ]);
+
+  const addNewRow = () => {
+    const newId = (verseRows.length + 1).toString();
+    setVerseRows([...verseRows, { id: newId, version: '', book: '', chapter: '', verse: '' }]);
+  };
+
+  const updateVerseRow = (rowId: string, field: keyof VerseRow, value: string) => {
+    setVerseRows(verseRows.map(row => 
+      row.id === rowId ? { ...row, [field]: value } : row
+    ));
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        {verseRows.map((row) => (
+          <VerseRow
+            key={row.id}
+            verseRow={row}
+            onUpdate={(field, value) => updateVerseRow(row.id, field, value)}
+            bibleVersions={bibleVersions}
+            bibleBooks={bibleBooks}
+            chapters={chapters}
+            verses={verses}
+          />
+        ))}
+        
+        <TouchableOpacity style={styles.moreButton} onPress={addNewRow}>
+          <Text style={styles.moreButtonText}>+ More</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  content: {
+    padding: 20,
+  },
+  rowContainer: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  dropdownContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    width: 80,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  dropdownButton: {
+    flex: 1,
+    height: 40,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    marginLeft: 10,
+  },
+  dropdownText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  dropdownArrow: {
+    fontSize: 10,
+    color: '#666',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    maxHeight: '80%',
+    width: '90%',
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#333',
+  },
+  scrollView: {
+    maxHeight: 400,
+  },
+  optionItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  moreButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  moreButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
