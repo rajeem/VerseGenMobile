@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-interface VerseRow {
+interface VerseRowData {
   id: string;
   version: string;
   book: string;
@@ -65,8 +65,8 @@ function Dropdown({ label, items, value, onSelect }: DropdownProps) {
 }
 
 function VerseRow({ verseRow, onUpdate, onDelete, bibleVersions, bibleBooks, chapters, verses, isLastRow }: {
-  verseRow: VerseRow;
-  onUpdate: (field: keyof VerseRow, value: string) => void;
+  verseRow: VerseRowData;
+  onUpdate: (field: keyof VerseRowData, value: string) => void;
   onDelete: () => void;
   bibleVersions: string[];
   bibleBooks: string[];
@@ -144,7 +144,7 @@ export default function HomeScreen() {
   const chapters = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
   const verses = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
 
-  const [verseRows, setVerseRows] = useState<VerseRow[]>([
+  const [verseRows, setVerseRows] = useState<VerseRowData[]>([
     { id: Date.now().toString(), version: '---', book: '---', chapter: '---', verse: '---' }
   ]);
 
@@ -157,7 +157,7 @@ export default function HomeScreen() {
     setVerseRows(verseRows.filter(row => row.id !== rowId));
   };
 
-  const updateVerseRow = (rowId: string, field: keyof VerseRow, value: string) => {
+  const updateVerseRow = (rowId: string, field: keyof VerseRowData, value: string) => {
     setVerseRows(verseRows.map(row => 
       row.id === rowId ? { ...row, [field]: value } : row
     ));
