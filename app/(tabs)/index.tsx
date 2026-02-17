@@ -1,32 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { supabase } from '@/lib/supabase';
 
 interface VerseRowData {
   id: string;
-  version: string;
-  book: string;
+  versionId: string;
+  bookId: string;
   chapter: string;
   verse: string;
 }
 
-interface DropdownProps {
+interface DropdownItem {
   label: string;
-  items: string[];
   value: string;
-  onSelect: (item: string) => void;
 }
 
-function Dropdown({ label, items, value, onSelect }: DropdownProps) {
+interface DropdownProps {
+  label: string;
+  items: DropdownItem[];
+  value: string;
+  onSelect: (item: DropdownItem) => void;
+  disabled?: boolean;
+}
+
+function Dropdown({ label, items, value, onSelect, disabled = false }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const selectedLabel = items.find((item) => item.value === value)?.label ?? '';
 
   return (
     <View style={styles.dropdownContainer}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity 
-        style={styles.dropdownButton} 
-        onPress={() => setIsOpen(true)}
+        style={[styles.dropdownButton, disabled && styles.dropdownButtonDisabled]} 
+        onPress={() => {
+          if (disabled) return;
+          setIsOpen(true);
+        }}
+        disabled={disabled}
       >
-        <Text style={styles.dropdownText}>{value || `Select ${label}`}</Text>
+        <Text style={styles.dropdownText}>{selectedLabel || `Select ${label}`}</Text>
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
       
@@ -46,14 +60,14 @@ function Dropdown({ label, items, value, onSelect }: DropdownProps) {
             <ScrollView style={styles.scrollView}>
               {items.map((item) => (
                 <TouchableOpacity
-                  key={`${label}-${item}`}
+                  key={`${label}-${item.value}`}
                   style={styles.optionItem}
                   onPress={() => {
                     onSelect(item);
                     setIsOpen(false);
                   }}
                 >
-                  <Text style={styles.optionText}>{item}</Text>
+                  <Text style={styles.optionText}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -68,12 +82,16 @@ function VerseRow({ verseRow, onUpdate, onDelete, bibleVersions, bibleBooks, cha
   verseRow: VerseRowData;
   onUpdate: (field: keyof VerseRowData, value: string) => void;
   onDelete: () => void;
-  bibleVersions: string[];
-  bibleBooks: string[];
+  bibleVersions: DropdownItem[];
+  bibleBooks: DropdownItem[];
   chapters: string[];
   verses: string[];
   isLastRow: boolean;
 }) {
+  const hasVersion = verseRow.versionId !== '';
+  const hasBook = verseRow.bookId !== '';
+  const hasChapter = verseRow.chapter !== '---';
+
   return (
     <View style={styles.rowContainer}>
       {!isLastRow && (
@@ -86,28 +104,31 @@ function VerseRow({ verseRow, onUpdate, onDelete, bibleVersions, bibleBooks, cha
           <Dropdown
             label="Version"
             items={bibleVersions}
-            value={verseRow.version}
-            onSelect={(value) => onUpdate('version', value)}
+            value={verseRow.versionId}
+            onSelect={(item) => onUpdate('versionId', item.value)}
           />
           <Dropdown
             label="Chapter"
-            items={chapters}
+            items={chapters.map((c) => ({ label: c, value: c }))}
             value={verseRow.chapter}
-            onSelect={(value) => onUpdate('chapter', value)}
+            onSelect={(item) => onUpdate('chapter', item.value)}
+            disabled={!hasVersion || !hasBook}
           />
         </View>
         <View style={styles.column}>
           <Dropdown
             label="Book"
             items={bibleBooks}
-            value={verseRow.book}
-            onSelect={(value) => onUpdate('book', value)}
+            value={verseRow.bookId}
+            onSelect={(item) => onUpdate('bookId', item.value)}
+            disabled={!hasVersion}
           />
           <Dropdown
             label="Verse"
-            items={verses}
+            items={verses.map((v) => ({ label: v, value: v }))}
             value={verseRow.verse}
-            onSelect={(value) => onUpdate('verse', value)}
+            onSelect={(item) => onUpdate('verse', item.value)}
+            disabled={!hasVersion || !hasBook || !hasChapter}
           />
         </View>
       </View>
@@ -116,41 +137,94 @@ function VerseRow({ verseRow, onUpdate, onDelete, bibleVersions, bibleBooks, cha
 }
 
 export default function HomeScreen() {
-  const bibleVersions = [
-    'King James Version (KJV)',
-    'New International Version (NIV)',
-    'English Standard Version (ESV)',
-    'New Living Translation (NLT)',
-    'New King James Version (NKJV)',
-  ];
+  const [bibleVersions, setBibleVersions] = useState<DropdownItem[]>([]);
+  const [bibleBooks, setBibleBooks] = useState<DropdownItem[]>([]);
+  const [isLoadingReferenceData, setIsLoadingReferenceData] = useState(false);
+  const [referenceDataError, setReferenceDataError] = useState<string | null>(null);
 
-  const bibleBooks = [
-    'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
-    'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel',
-    '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra',
-    'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs',
-    'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations',
-    'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos',
-    'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk',
-    'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
-    'Matthew', 'Mark', 'Luke', 'John', 'Acts',
-    'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
-    'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy',
-    '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James',
-    '1 Peter', '2 Peter', '1 John', '2 John', '3 John',
-    'Jude', 'Revelation'
-  ];
+  const [chaptersByRowId, setChaptersByRowId] = useState<Record<string, string[]>>({});
+  const [versesByRowId, setVersesByRowId] = useState<Record<string, string[]>>({});
+  const [bookIdsByVersionId, setBookIdsByVersionId] = useState<Record<string, string[]>>({});
 
-  const chapters = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
-  const verses = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generatedVerses, setGeneratedVerses] = useState<string[]>([]);
+
+  const getVersionLabel = (versionId: string) => bibleVersions.find((v) => v.value === versionId)?.label ?? '';
+  const getBookLabel = (bookId: string) => bibleBooks.find((b) => b.value === bookId)?.label ?? '';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const getRowLabel = (row: Record<string, unknown>) => {
+      const candidate =
+        row.name ??
+        row.display_name ??
+        row.title ??
+        row.label ??
+        row.code ??
+        row.abbreviation ??
+        row.id;
+      return candidate == null ? '' : String(candidate);
+    };
+
+    const getRowId = (row: Record<string, unknown>) => {
+      const candidate = row.id;
+      return candidate == null ? '' : String(candidate);
+    };
+
+    const loadReferenceData = async () => {
+      setIsLoadingReferenceData(true);
+      setReferenceDataError(null);
+
+      const [{ data: versions, error: versionsError }, { data: books, error: booksError }] = await Promise.all([
+        supabase.from('versions').select('id,name'),
+        supabase.from('books').select('id,name'),
+      ]);
+
+      if (!isMounted) return;
+
+      if (versionsError || booksError) {
+        setReferenceDataError((versionsError ?? booksError)?.message ?? 'Failed to load reference data');
+        setBibleVersions([]);
+        setBibleBooks([]);
+        setIsLoadingReferenceData(false);
+        return;
+      }
+
+      setBibleVersions(
+        (versions ?? [])
+          .map((row) => ({
+            value: getRowId(row as Record<string, unknown>),
+            label: getRowLabel(row as Record<string, unknown>),
+          }))
+          .filter((item) => item.value && item.label)
+      );
+      setBibleBooks(
+        (books ?? [])
+          .map((row) => ({
+            value: getRowId(row as Record<string, unknown>),
+            label: getRowLabel(row as Record<string, unknown>),
+          }))
+          .filter((item) => item.value && item.label)
+      );
+      setIsLoadingReferenceData(false);
+    };
+
+    loadReferenceData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [verseRows, setVerseRows] = useState<VerseRowData[]>([
-    { id: Date.now().toString(), version: '---', book: '---', chapter: '---', verse: '---' }
+    { id: Date.now().toString(), versionId: '', bookId: '', chapter: '---', verse: '---' }
   ]);
 
   const addNewRow = () => {
     const newId = Date.now().toString();
-    setVerseRows([...verseRows, { id: newId, version: '---', book: '---', chapter: '---', verse: '---' }]);
+    setVerseRows([...verseRows, { id: newId, versionId: '', bookId: '', chapter: '---', verse: '---' }]);
   };
 
   const deleteVerseRow = (rowId: string) => {
@@ -158,13 +232,170 @@ export default function HomeScreen() {
   };
 
   const updateVerseRow = (rowId: string, field: keyof VerseRowData, value: string) => {
-    setVerseRows(verseRows.map(row => 
-      row.id === rowId ? { ...row, [field]: value } : row
-    ));
+    setVerseRows(verseRows.map(row => {
+      if (row.id !== rowId) return row;
+
+      if (field === 'versionId') {
+        return { ...row, versionId: value, bookId: '', chapter: '---', verse: '---' };
+      }
+
+      if (field === 'bookId') {
+        return { ...row, bookId: value, chapter: '---', verse: '---' };
+      }
+
+      if (field === 'chapter') {
+        return { ...row, chapter: value, verse: '---' };
+      }
+
+      return { ...row, [field]: value };
+    }));
   };
 
-  const handleGenerate = () => {
-    console.log('Generate button pressed', verseRows);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBooksForVersion = async (versionId: string) => {
+      const { data, error } = await supabase
+        .from('verses')
+        .select('book_id')
+        .eq('version_id', Number(versionId))
+        .not('book_id', 'is', null)
+        .order('book_id', { ascending: true });
+
+      if (!isMounted) return;
+
+      if (error) {
+        setBookIdsByVersionId((prev) => ({ ...prev, [versionId]: [] }));
+        return;
+      }
+
+      const unique = Array.from(
+        new Set((data ?? []).map((row) => String((row as Record<string, unknown>).book_id)).filter(Boolean))
+      );
+      setBookIdsByVersionId((prev) => ({ ...prev, [versionId]: unique }));
+    };
+
+    const versionIds = Array.from(new Set(verseRows.map((r) => r.versionId).filter(Boolean)));
+    versionIds.forEach((versionId) => {
+      if (bookIdsByVersionId[versionId]) return;
+      void loadBooksForVersion(versionId);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [bookIdsByVersionId, verseRows]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadChapters = async (rowId: string, versionId: string, bookId: string) => {
+      const { data, error } = await supabase
+        .from('verses')
+        .select('chapter')
+        .eq('version_id', Number(versionId))
+        .eq('book_id', Number(bookId))
+        .not('chapter', 'is', null)
+        .order('chapter', { ascending: true });
+
+      if (!isMounted) return;
+
+      if (error) {
+        setChaptersByRowId((prev) => ({ ...prev, [rowId]: [] }));
+        return;
+      }
+
+      const unique = Array.from(
+        new Set((data ?? []).map((row) => String((row as Record<string, unknown>).chapter)).filter((c) => c !== 'null'))
+      );
+      setChaptersByRowId((prev) => ({ ...prev, [rowId]: unique }));
+    };
+
+    const loadVerses = async (rowId: string, versionId: string, bookId: string, chapter: string) => {
+      const { data, error } = await supabase
+        .from('verses')
+        .select('verse')
+        .eq('version_id', Number(versionId))
+        .eq('book_id', Number(bookId))
+        .eq('chapter', Number(chapter))
+        .not('verse', 'is', null)
+        .order('verse', { ascending: true });
+
+      if (!isMounted) return;
+
+      if (error) {
+        setVersesByRowId((prev) => ({ ...prev, [rowId]: [] }));
+        return;
+      }
+
+      const unique = Array.from(
+        new Set((data ?? []).map((row) => String((row as Record<string, unknown>).verse)).filter((v) => v !== 'null'))
+      );
+      setVersesByRowId((prev) => ({ ...prev, [rowId]: unique }));
+    };
+
+    verseRows.forEach((row) => {
+      if (row.versionId && row.bookId) {
+        void loadChapters(row.id, row.versionId, row.bookId);
+      } else {
+        setChaptersByRowId((prev) => ({ ...prev, [row.id]: [] }));
+      }
+
+      if (row.versionId && row.bookId && row.chapter !== '---') {
+        void loadVerses(row.id, row.versionId, row.bookId, row.chapter);
+      } else {
+        setVersesByRowId((prev) => ({ ...prev, [row.id]: [] }));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [verseRows]);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setGenerateError(null);
+    setGeneratedVerses([]);
+
+    const invalidIndex = verseRows.findIndex(
+      (r) => !r.versionId || !r.bookId || r.chapter === '---' || r.verse === '---'
+    );
+
+    if (invalidIndex !== -1) {
+      const invalid = verseRows[invalidIndex];
+      const missing: string[] = [];
+      if (!invalid.versionId) missing.push('Version');
+      if (!invalid.bookId) missing.push('Book');
+      if (invalid.chapter === '---') missing.push('Chapter');
+      if (invalid.verse === '---') missing.push('Verse');
+      setGenerateError(`Row ${invalidIndex + 1}: please complete ${missing.join(', ')}.`);
+      setIsGenerating(false);
+      return;
+    }
+
+    const results = await Promise.all(
+      verseRows.map(async (row) => {
+        const { data, error } = await supabase
+          .from('verses')
+          .select('text')
+          .eq('version_id', Number(row.versionId))
+          .eq('book_id', Number(row.bookId))
+          .eq('chapter', Number(row.chapter))
+          .eq('verse', Number(row.verse))
+          .maybeSingle();
+
+        if (error) {
+          return `${getVersionLabel(row.versionId)} ${getBookLabel(row.bookId)} ${row.chapter}:${row.verse} — ${error.message}`;
+        }
+
+        const text = (data as { text?: string | null } | null)?.text ?? '';
+        return `${getVersionLabel(row.versionId)} ${getBookLabel(row.bookId)} ${row.chapter}:${row.verse} — ${text}`;
+      })
+    );
+
+    setGeneratedVerses(results);
+    setIsGenerating(false);
   };
 
   return (
@@ -175,6 +406,15 @@ export default function HomeScreen() {
       </View>
       <ScrollView style={styles.container}>
         <View style={styles.content}>
+          {isLoadingReferenceData && (
+            <Text style={styles.loadingText}>Loading versions and books...</Text>
+          )}
+          {!!referenceDataError && (
+            <Text style={styles.errorText}>{referenceDataError}</Text>
+          )}
+          {!!generateError && (
+            <Text style={styles.errorText}>{generateError}</Text>
+          )}
           {verseRows.map((row, index) => (
             <VerseRow
               key={row.id}
@@ -182,9 +422,13 @@ export default function HomeScreen() {
               onUpdate={(field, value) => updateVerseRow(row.id, field, value)}
               onDelete={() => deleteVerseRow(row.id)}
               bibleVersions={bibleVersions}
-              bibleBooks={bibleBooks}
-              chapters={chapters}
-              verses={verses}
+              bibleBooks={
+                row.versionId
+                  ? bibleBooks.filter((b) => (bookIdsByVersionId[row.versionId] ?? []).includes(b.value))
+                  : []
+              }
+              chapters={chaptersByRowId[row.id] ?? []}
+              verses={versesByRowId[row.id] ?? []}
               isLastRow={index === verseRows.length - 1}
             />
           ))}
@@ -193,9 +437,20 @@ export default function HomeScreen() {
             <Text style={styles.moreButtonText}>+ More</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.generateButton} onPress={handleGenerate}>
-            <Text style={styles.generateButtonText}>Generate</Text>
+          <TouchableOpacity style={styles.generateButton} onPress={handleGenerate} disabled={isGenerating}>
+            <Text style={styles.generateButtonText}>{isGenerating ? 'Generating...' : 'Generate'}</Text>
           </TouchableOpacity>
+
+          {generatedVerses.length > 0 && (
+            <View style={styles.resultsContainer}>
+              <Text style={styles.resultsTitle}>Results</Text>
+              {generatedVerses.map((line, idx) => (
+                <View key={`result-${idx}`} style={styles.resultItem}>
+                  <Text style={styles.resultText}>{line}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -226,6 +481,16 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  loadingText: {
+    marginBottom: 10,
+    color: '#666',
+    fontSize: 12,
+  },
+  errorText: {
+    marginBottom: 10,
+    color: '#FF3B30',
+    fontSize: 12,
   },
   rowContainer: {
     marginBottom: 12,
@@ -282,6 +547,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginLeft: 4,
   },
+  dropdownButtonDisabled: {
+    opacity: 0.5,
+  },
   dropdownText: {
     fontSize: 12,
     color: '#333',
@@ -320,6 +588,27 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 16,
+    color: '#333',
+  },
+  resultsContainer: {
+    marginTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 10,
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  resultItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  resultText: {
+    fontSize: 14,
     color: '#333',
   },
   moreButton: {
